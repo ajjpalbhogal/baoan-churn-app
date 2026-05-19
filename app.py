@@ -2,183 +2,130 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(
-    page_title="Universal Customer Churn Dashboard",
-    layout="wide"
-)
+st.set_page_config(page_title="BAOAN Churn Dashboard", layout="wide")
 
-st.title("Customer Churn Insights Dashboard")
+st.title("BAOAN Customer Churn Prediction Dashboard")
 
-st.write(
-    "Upload any customer churn dataset and generate insights automatically."
-)
-
-uploaded_file = st.file_uploader(
-    "Upload CSV or Excel File",
-    type=["csv", "xlsx"]
-)
+uploaded_file = st.file_uploader("Upload Customer Dataset", type=["csv", "xlsx"])
 
 if uploaded_file is not None:
 
-    # Load dataset
     if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
     else:
         df = pd.read_excel(uploaded_file)
 
-    # Preview
     st.subheader("Dataset Preview")
     st.dataframe(df.head())
 
-    # Column selection
-    st.subheader("Select Important Columns")
+    st.subheader("Dataset Information")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Rows", df.shape[0])
+    c2.metric("Columns", df.shape[1])
+    c3.metric("Missing Values", int(df.isnull().sum().sum()))
 
-    columns = df.columns.tolist()
+    if "Attrition_Flag" in df.columns:
+        churned = df[df["Attrition_Flag"] == 1].shape[0]
+        active = df[df["Attrition_Flag"] == 0].shape[0]
+        churn_rate = round((churned / len(df)) * 100, 2)
 
-    churn_col = st.selectbox(
-        "Select churn column",
-        columns
-    )
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Total Customers", len(df))
+        k2.metric("Churned Customers", churned)
+        k3.metric("Churn Rate", f"{churn_rate}%")
+        k4.metric("Active Customers", active)
 
-    numeric_cols = df.select_dtypes(
-        include=["int64", "float64"]
-    ).columns.tolist()
-
-    spend_col = st.selectbox(
-        "Select spend column",
-        ["None"] + numeric_cols
-    )
-
-    activity_col = st.selectbox(
-        "Select activity/usage column",
-        ["None"] + numeric_cols
-    )
-
-    tenure_col = st.selectbox(
-        "Select tenure/months column",
-        ["None"] + numeric_cols
-    )
-
-    support_col = st.selectbox(
-        "Select support/contact column",
-        ["None"] + numeric_cols
-    )
-
-    # KPIs
-    st.subheader("Business KPIs")
-
-    total_customers = len(df)
-
-    churn_counts = df[churn_col].value_counts()
-
-    churned = churn_counts.iloc[-1]
-
-    churn_rate = round(
-        (churned / total_customers) * 100,
-        2
-    )
-
-    k1, k2, k3 = st.columns(3)
-
-    k1.metric(
-        "Total Customers",
-        total_customers
-    )
-
-    k2.metric(
-        "Estimated Churned Customers",
-        int(churned)
-    )
-
-    k3.metric(
-        "Churn Rate",
-        f"{churn_rate}%"
-    )
-
-    # Pie chart
-    st.subheader("Churn Distribution")
-
-    churn_df = churn_counts.reset_index()
-    churn_df.columns = ["Churn Status", "Count"]
-
-    fig = px.pie(
-        churn_df,
-        names="Churn Status",
-        values="Count",
-        title="Customer Churn Distribution"
-    )
-
-    st.plotly_chart(fig, width="stretch")
-
-    # Behaviour insights
     st.subheader("Customer Behaviour Insights")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        if activity_col != "None":
-            fig = px.box(
-                df,
-                x=churn_col,
-                y=activity_col,
-                title=f"{activity_col} by Churn Status"
-            )
-
+        if "Months_Inactive_12_mon" in df.columns and "Attrition_Flag" in df.columns:
+            fig = px.histogram(df, x="Months_Inactive_12_mon", color="Attrition_Flag",
+                               barmode="group", title="Churn by Months Inactive")
             st.plotly_chart(fig, width="stretch")
 
     with col2:
-        if spend_col != "None":
-            fig = px.box(
-                df,
-                x=churn_col,
-                y=spend_col,
-                title=f"{spend_col} by Churn Status"
-            )
-
+        if "Total_Trans_Ct" in df.columns and "Attrition_Flag" in df.columns:
+            fig = px.box(df, x="Attrition_Flag", y="Total_Trans_Ct",
+                         title="Transaction Count by Churn Status")
             st.plotly_chart(fig, width="stretch")
 
     col3, col4 = st.columns(2)
 
     with col3:
-        if tenure_col != "None":
-            fig = px.histogram(
-                df,
-                x=tenure_col,
-                color=churn_col,
-                barmode="group",
-                title=f"Churn by {tenure_col}"
-            )
-
+        if "Total_Trans_Amt" in df.columns and "Attrition_Flag" in df.columns:
+            fig = px.box(df, x="Attrition_Flag", y="Total_Trans_Amt",
+                         title="Transaction Amount by Churn Status")
             st.plotly_chart(fig, width="stretch")
 
     with col4:
-        if support_col != "None":
-            fig = px.histogram(
-                df,
-                x=support_col,
-                color=churn_col,
-                barmode="group",
-                title=f"Churn by {support_col}"
-            )
-
+        if "Contacts_Count_12_mon" in df.columns and "Attrition_Flag" in df.columns:
+            fig = px.histogram(df, x="Contacts_Count_12_mon", color="Attrition_Flag",
+                               barmode="group", title="Churn by Customer Contact Count")
             st.plotly_chart(fig, width="stretch")
 
-    # Recommendations
+    st.subheader("Customer Profile Insights")
+
+    col5, col6 = st.columns(2)
+
+    with col5:
+        if "Income_Category" in df.columns and "Attrition_Flag" in df.columns:
+            income_churn = df.groupby("Income_Category")["Attrition_Flag"].mean().reset_index()
+            income_churn["Churn Rate %"] = income_churn["Attrition_Flag"] * 100
+            fig = px.bar(income_churn, x="Income_Category", y="Churn Rate %",
+                         title="Churn Rate by Income Category")
+            st.plotly_chart(fig, width="stretch")
+
+    with col6:
+        if "Card_Category" in df.columns and "Attrition_Flag" in df.columns:
+            card_churn = df.groupby("Card_Category")["Attrition_Flag"].mean().reset_index()
+            card_churn["Churn Rate %"] = card_churn["Attrition_Flag"] * 100
+            fig = px.bar(card_churn, x="Card_Category", y="Churn Rate %",
+                         title="Churn Rate by Card Category")
+            st.plotly_chart(fig, width="stretch")
+
+    st.subheader("Customer Risk Segmentation")
+
+    if "Months_Inactive_12_mon" in df.columns and "Total_Trans_Ct" in df.columns:
+        df["Risk_Category"] = "Low Risk"
+
+        df.loc[
+            (df["Months_Inactive_12_mon"] >= 3) &
+            (df["Total_Trans_Ct"] < df["Total_Trans_Ct"].median()),
+            "Risk_Category"
+        ] = "High Risk"
+
+        df.loc[
+            (df["Months_Inactive_12_mon"] >= 2) &
+            (df["Risk_Category"] != "High Risk"),
+            "Risk_Category"
+        ] = "Medium Risk"
+
+        risk_counts = df["Risk_Category"].value_counts().reset_index()
+        risk_counts.columns = ["Risk Category", "Count"]
+
+        fig = px.bar(risk_counts, x="Risk Category", y="Count",
+                     title="Customer Risk Categories")
+        st.plotly_chart(fig, width="stretch")
+
+        st.subheader("High Risk Customers")
+        st.dataframe(df[df["Risk_Category"] == "High Risk"].head(20))
+
     st.subheader("Business Insights & Recommendations")
 
     st.info("""
     Key Insights:
-    - Churn behaviour varies across customer activity and spending.
-    - Customers with low activity may require retention efforts.
-    - High support interaction may indicate dissatisfaction.
+    - Inactive customers show higher churn risk.
+    - Customers with lower transaction counts need early attention.
+    - High contact frequency may indicate dissatisfaction or service issues.
 
     Recommendations:
     - Target high-risk customers with retention offers.
-    - Re-engage inactive customers.
-    - Monitor customer support patterns closely.
+    - Send re-engagement campaigns to inactive customers.
+    - Provide loyalty rewards to customers with declining transaction activity.
+    - Use customer risk categories for proactive support campaigns.
     """)
 
 else:
-    st.info(
-        "Please upload a CSV or Excel customer churn dataset."
-    )
+    st.info("Please upload a CSV or Excel customer dataset to generate the dashboard.")
